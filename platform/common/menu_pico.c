@@ -825,8 +825,10 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff_h   ("Emulate Game Gear LCD",    MA_OPT2_ENABLE_GGLCD  ,PicoIn.opt, POPT_EN_GG_LCD, h_gglcd),
 	mee_range_h   ("Overclock M68k (%)",       MA_OPT2_OVERCLOCK_M68K,currentConfig.overclock_68k, 0, 1000, h_ovrclk),
 	mee_onoff_h   ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoIn.opt, POPT_EN_DRC, h_dynarec),
+#ifndef NO_32X
 	mee_cust_h    ("Master SH2 cycles",        MA_32XOPT_MSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),
 	mee_cust_h    ("Slave SH2 cycles",         MA_32XOPT_SSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),
+#endif
 	MENU_OPTIONS_ADV
 	mee_end,
 };
@@ -1006,6 +1008,7 @@ static int find_renderer(const char *names[], const char *which)
 }
 
 static int mh_profile(int id, int keys) {
+	printf("mh_profile %d %d\n", id, keys);
 	switch (id) {
 	case MA_PROFILE_ACCURATE:
 		currentConfig.renderer = find_renderer(renderer_names, "16bit");
@@ -1507,6 +1510,7 @@ static int main_menu_handler(int id, int keys)
 		}
 		break;
 	case MA_MAIN_CHANGE_CD:
+#ifndef NO_MCD
 		if (PicoIn.AHW & PAHW_MCD) {
 			// if cd is loaded, cdd_unload() triggers eject and
 			// returns 1, else we'll select and load new CD here
@@ -1514,6 +1518,7 @@ static int main_menu_handler(int id, int keys)
 				menu_loop_tray();
 			return 1;
 		}
+#endif
 		break;
 	case MA_MAIN_CREDITS:
 		draw_menu_message(credits, draw_frame_credits);
@@ -1539,14 +1544,19 @@ static int main_menu_handler(int id, int keys)
 
 static const char *mgn_picopage(int id, int *offs)
 {
+#ifndef NO_PICO
 	if (PicoPicohw.page != 7)
 		sprintf(static_buff, "%i", PicoPicohw.page);
 	else	sprintf(static_buff, "Test");
 	return static_buff;
+#else
+	return "";
+#endif
 }
 
 static int mh_picopage(int id, int keys)
 {
+#ifndef NO_PICO
 	if (keys & (PBTN_LEFT|PBTN_RIGHT)) { // multi choice
 		PicoPicohw.page += (keys & PBTN_LEFT) ? -1 : 1;
 		if (PicoPicohw.page < 0) PicoPicohw.page = 7;
@@ -1554,6 +1564,7 @@ static int mh_picopage(int id, int keys)
 		return 0;
 	}
 	return 1;
+#endif
 }
 
 static const char *mgn_saveloadcfg(int id, int *offs)
@@ -1735,8 +1746,12 @@ static menu_entry e_menu_hidden[] =
 	mee_onoff("Disable YM2612 SSG-EG",    MA_OPT2_DISABLE_YM_SSG,PicoIn.opt, POPT_DIS_FM_SSGEG),
 	mee_onoff("Enable YM2612 DAC noise",  MA_OPT2_ENABLE_YM_DAC, PicoIn.opt, POPT_EN_FM_DAC),
 	mee_onoff("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
+#ifndef NO_MCD
 	mee_onoff("Scale/Rot. fx",            MA_CDOPT_SCALEROT_CHIP,PicoIn.opt, POPT_EN_MCD_GFX),
+#endif
+#ifndef NO_32X
 	mee_onoff("32X enabled",              MA_32XOPT_ENABLE_32X,  PicoIn.opt, POPT_EN_32X),
+#endif
 	mee_end,
 };
 

@@ -345,7 +345,11 @@ static char *emu_make_rom_id(const char *fname)
 // buffer must be at least 150 byte long
 void emu_get_game_name(char *str150)
 {
+#ifndef NO_MCD
 	int ret, swab = (PicoIn.AHW & PAHW_MCD) ? 0 : 1;
+#else
+	int ret, swab = 1;
+#endif
 	char *s, *d;
 
 	ret = extract_text(str150, media_id_header + 0x50, 0x30, swab); // overseas name
@@ -377,18 +381,26 @@ static void system_announce(void)
 #ifdef NO_SMS
 		extra = " [no support]";
 #endif
+#ifndef NO_PICO
 	} else if (PicoIn.AHW & PAHW_PICO) {
 		sys_name = "Pico";
+#endif
+#if !defined(NO_MCD) && !defined(NO_32X)
 	} else if ((PicoIn.AHW & (PAHW_32X|PAHW_MCD)) == (PAHW_32X|PAHW_MCD)) {
 		sys_name = "32X + Mega CD";
 		if ((Pico.m.hardware & 0xc0) == 0x80)
 			sys_name = "32X + Sega CD";
+#endif
+#ifndef NO_MCD
 	} else if (PicoIn.AHW & PAHW_MCD) {
 		sys_name = "Mega CD";
 		if ((Pico.m.hardware & 0xc0) == 0x80)
 			sys_name = "Sega CD";
+#endif
+#ifndef NO_32X
 	} else if (PicoIn.AHW & PAHW_32X) {
 		sys_name = "32X";
+#endif
 	} else {
 		sys_name = "Mega Drive";
 		if ((Pico.m.hardware & 0xc0) == 0x80)
@@ -593,7 +605,11 @@ int emu_swap_cd(const char *fname)
 	enum cd_track_type cd_type;
 	int ret = -1;
 
+#ifndef NO_MCD
 	cd_type = PicoCdCheck(fname, NULL);
+#else
+	cd_type = CT_UNKNOWN;
+#endif
 	if (cd_type != CT_UNKNOWN)
 		ret = cdd_load(fname, cd_type);
 	if (ret != 0) {
@@ -665,9 +681,15 @@ void emu_prep_defconfig(void)
 				  EOPT_EN_CD_LEDS | EOPT_GZIP_SAVES | EOPT_PICO_PEN;
 	defaultConfig.s_PicoOpt = POPT_EN_SNDFILTER|POPT_EN_GG_LCD|POPT_EN_YM2413 |
 				  POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
+#ifndef NO_MCD
 				  POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX |
+#endif
 				  POPT_EN_DRC|POPT_ACC_SPRITES |
-				  POPT_EN_32X|POPT_EN_PWM;
+#ifndef NO_32X
+				  POPT_EN_32X|
+#endif
+				  POPT_EN_PWM;
+	printf("1 - defaultConfig.s_PicoOpt: %x\n", defaultConfig.s_PicoOpt);
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0; // auto
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
@@ -693,6 +715,7 @@ void emu_prep_defconfig(void)
 void emu_set_defconfig(void)
 {
 	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
+	printf("2 - defaultConfig.s_PicoOpt: %x\n", defaultConfig.s_PicoOpt);
 	PicoIn.opt = currentConfig.s_PicoOpt;
 	PicoIn.sndRate = currentConfig.s_PsndRate;
 	PicoIn.regionOverride = currentConfig.s_PicoRegion;
@@ -896,9 +919,14 @@ char *emu_get_save_fname(int load, int is_sram, int slot, int *time)
 
 	if (is_sram)
 	{
+#ifndef NO_MCD
 		strcpy(ext, (PicoIn.AHW & PAHW_MCD) && Pico.romsize == 0 ? ".brm" : ".srm");
 		romfname_ext(saveFname, sizeof(static_buff),
 			(PicoIn.AHW & PAHW_MCD) && Pico.romsize == 0 ? "brm"PATH_SEP : "srm"PATH_SEP, ext);
+#else
+		strcpy(ext, ".srm");
+		romfname_ext(saveFname, sizeof(static_buff), "srm"PATH_SEP, ext);
+#endif
 		if (!load)
 			return saveFname;
 
@@ -972,6 +1000,7 @@ int emu_save_load_game(int load, int sram)
 		int sram_size;
 		unsigned char *sram_data;
 		int truncate = 1;
+#ifndef NO_MCD
 		if ((PicoIn.AHW & PAHW_MCD) && Pico.romsize == 0)
 		{
 			if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
@@ -988,6 +1017,10 @@ int emu_save_load_game(int load, int sram)
 			sram_size = Pico.sv.size;
 			sram_data = Pico.sv.data;
 		}
+#else
+		sram_size = Pico.sv.size;
+		sram_data = Pico.sv.data;
+#endif
 		if (sram_data == NULL)
 			return 0; // cart saves forcefully disabled for this game
 
@@ -999,8 +1032,10 @@ int emu_save_load_game(int load, int sram)
 			ret = fread(sram_data, 1, sram_size, sramFile);
 			ret = ret > 0 ? 0 : -1;
 			fclose(sramFile);
+#ifndef NO_MCD
 			if ((PicoIn.AHW & PAHW_MCD) && Pico.romsize == 0 && (PicoIn.opt&POPT_EN_MCD_RAMCART))
 				memcpy(Pico_mcd->bram, sram_data, 0x2000);
+#endif
 		} else {
 			// sram save needs some special processing
 			// see if we have anything to save
@@ -1393,12 +1428,15 @@ void emu_update_input(void)
 		}
 
 		in_update_analog(0, -1, &i); // get mouse buttons, bit 2-0 = RML
+#ifndef NO_PICO
 		if (PicoIn.AHW & PAHW_PICO) {
 			// TODO is maintaining 2 different mappings necessary?
 			if (i & 1) buttons |= 1<<GBTN_C;        // pen button
 			if (i & 2) buttons |= 1<<GBTN_B;	// red button
 			if (i & 4) buttons |= 1<<GBTN_START;    // pen up/down
-		} else {
+		} else
+#endif
+		{
 			if (i & 1) buttons |= 1<<GBTN_B;	// as Sega Mouse
 			if (i & 2) buttons |= 1<<GBTN_START;
 			if (i & 4) buttons |= 1<<GBTN_C;
@@ -1411,7 +1449,11 @@ void emu_update_input(void)
 	}
 
 	if (kbd_mode) {
+#ifndef NO_PICO
 		int mask = (PicoIn.AHW & PAHW_PICO ? 0xf : 0x0);
+#else
+		int mask = 0x0;
+#endif
 		if (currentConfig.keyboard == 2)
 			count_kbd = in_update_kbd(actions_kbd);
 		else if (currentConfig.keyboard == 1)
@@ -1472,8 +1514,10 @@ void emu_update_input(void)
 		}
 	}
 
+#ifndef NO_PICO
 	if (PicoIn.AHW & PAHW_PICO)
 		run_events_pico(events);
+#endif
 	if (events)
 		run_events_ui(events);
 	if (movie_data)
@@ -1640,10 +1684,16 @@ static void emu_loop_prep(void)
 	vkbd = NULL;
 	if (currentConfig.keyboard == 1) {
 		if (PicoIn.AHW & PAHW_SMS) vkbd = vkbd_init(0);
+#ifndef NO_PICO
 		else if (PicoIn.AHW & PAHW_PICO) vkbd = vkbd_init(1);
+#endif
 	}
 	PicoIn.opt &= ~POPT_EN_KBD;
+#ifndef NO_PICO
 	if (((PicoIn.AHW & PAHW_PICO) || (PicoIn.AHW & PAHW_SC)) && currentConfig.keyboard)
+#else
+	if ((PicoIn.AHW & PAHW_SC) && currentConfig.keyboard)
+#endif
 		PicoIn.opt |= POPT_EN_KBD;
 
 	PicoIn.opt &= ~POPT_EN_MOUSE;

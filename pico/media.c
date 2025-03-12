@@ -179,6 +179,7 @@ looks_like_pico:
 }
 
 /* checks if fname points to valid MegaCD image */
+#ifndef NO_MCD
 int PicoCdCheck(const char *fname_in, int *pregion)
 {
   const char *fname = fname_in;
@@ -252,6 +253,7 @@ int PicoCdCheck(const char *fname_in, int *pregion)
 
   return type;
 }
+#endif
 
 enum media_type_e PicoLoadMedia(const char *filename,
   const unsigned char *rom, unsigned int romsize,
@@ -262,7 +264,9 @@ enum media_type_e PicoLoadMedia(const char *filename,
 {
   const char *rom_fname = filename;
   enum media_type_e media_type;
+#ifndef NO_MCD
   enum cd_track_type cd_img_type = CT_UNKNOWN;
+#endif
   pm_file *rom_file = NULL;
   unsigned char *rom_data = NULL;
   unsigned int rom_size = 0;
@@ -273,12 +277,15 @@ enum media_type_e PicoLoadMedia(const char *filename,
   if (media_type == PM_BAD_DETECT)
     goto out;
 
+#ifndef NO_MCD
   if ((PicoIn.AHW & PAHW_MCD) && Pico_mcd != NULL)
     cdd_unload();
+#endif
   PicoCartUnload();
   PicoIn.AHW = 0;
   PicoIn.quirks = 0;
 
+#ifndef NO_MCD
   if (media_type == PM_CD)
   {
     // check for MegaCD image
@@ -327,13 +334,16 @@ enum media_type_e PicoLoadMedia(const char *filename,
       media_type = PM_BAD_CD;
       goto out;
     }
-  }
-  else if (media_type == PM_MARK3) {
+  } else
+#endif
+  if (media_type == PM_MARK3) {
     PicoIn.AHW = PAHW_SMS;
   }
+#ifndef NO_PICO
   else if (media_type == PM_PICO) {
     PicoIn.AHW = PAHW_PICO;
   }
+#endif
 
   if (rom == NULL && rom_fname != NULL) {
     rom_file = pm_open(rom_fname);
@@ -371,6 +381,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
     }
 
     // maybe we are loading MegaCD BIOS?
+#ifndef NO_MCD
     if (!(PicoIn.AHW & PAHW_MCD) && rom_size <= 0x20000 && (!rom_strcmp(rom_data, rom_size, 0x124, "BOOT") ||
          !rom_strcmp(rom_data, rom_size, 0x128, "BOOT"))) {
       PicoIn.AHW |= PAHW_MCD;
@@ -379,9 +390,13 @@ enum media_type_e PicoLoadMedia(const char *filename,
       PicoCartUnload();
       rom_size = 0;
     }
+#endif
   }
 
-  if (!(PicoIn.AHW & PAHW_MCD)) {
+#ifndef NO_MCD
+  if (!(PicoIn.AHW & PAHW_MCD))
+#endif
+  {
     // load config for this ROM (do this before insert to get correct region)
     memcpy(media_id_header, rom_data + 0x100, sizeof(media_id_header));
     if (do_region_override != NULL)
@@ -414,6 +429,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
 
   // insert CD if it was detected
   Pico.m.ncart_in = 0;
+#ifndef NO_MCD
   if (cd_img_type != CT_UNKNOWN) {
     ret = cdd_load(filename, cd_img_type);
     if (ret != 0) {
@@ -424,11 +440,13 @@ enum media_type_e PicoLoadMedia(const char *filename,
     if (Pico.romsize == 0)
       Pico.m.ncart_in = 1;
   }
+#endif
 
   if (PicoCartInsert(rom_data, rom_size, carthw_cfg_fname)) {
     media_type = PM_ERROR;
     goto out;
   }
+
   rom_data = NULL; // now belongs to PicoCart
 
   if (PicoIn.quirks & PQUIRK_FORCE_6BTN)

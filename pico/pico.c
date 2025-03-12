@@ -36,9 +36,15 @@ void PicoInit(void)
   SekInit();
   z80_init(); // init even if we aren't going to use it
 
+#ifndef NO_MCD
   PicoInitMCD();
+#endif
+#ifndef NO_SVP
   PicoSVPInit();
+#endif
+#ifndef NO_32X
   Pico32xInit();
+#endif
   PsndInit();
 
   PicoVideoInit();
@@ -50,8 +56,10 @@ void PicoInit(void)
 void PicoExit(void)
 {
   PicoCartUnload();
+#ifndef NO_MCD
   if (PicoIn.AHW & PAHW_MCD)
     PicoExitMCD();
+#endif
   z80_exit();
   PsndExit();
   PicoCloseTape();
@@ -77,13 +85,21 @@ void PicoPower(void)
   // my MD1 VA6 console has this in IO
   PicoMem.ioports[1] = PicoMem.ioports[2] = PicoMem.ioports[3] = 0xff;
 
+#ifndef NO_PICO
   Pico.video.hint_irq = (PicoIn.AHW & PAHW_PICO ? 5 : 4);
+#else
+  Pico.video.hint_irq = 4;
+#endif
 
+#ifndef NO_MCD
   if (PicoIn.AHW & PAHW_MCD)
     PicoPowerMCD();
+#endif
 
+#ifndef NO_32X
   if (PicoIn.opt & POPT_EN_32X)
     PicoPower32x();
+#endif
 
   PicoReset();
 
@@ -154,7 +170,11 @@ PICO_INTERNAL void PicoDetectRegion(void)
   else if (support&1)   hw=0x00;          // Japan NTSC
   else hw=0x80; // USA
 
+#ifndef NO_MCD
   if (!(PicoIn.AHW & PAHW_MCD)) hw |= 0x20; // No disk attached
+#else
+  hw |= 0x20; // No disk attached
+#endif
 
   Pico.m.hardware=(unsigned char)hw; 
   Pico.m.pal=pal;
@@ -173,16 +193,22 @@ int PicoReset(void)
   memset(&PicoIn.padInt, 0, sizeof(PicoIn.padInt));
 
   z80_reset();
+#ifndef NO_SMS
   if (PicoIn.AHW & PAHW_SMS) {
     PicoResetMS();
     return 0;
   }
+#endif
 
   SekReset();
   // ..but do not reset SekCycle* to not desync with addons
 
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
+#ifndef NO_MCD
   SekSetRealTAS(PicoIn.AHW & PAHW_MCD);
+#else
+  SekSetRealTAS(0);
+#endif
 
   Pico.m.z80_bank68k = 0;
   Pico.m.z80_reset = 1;
@@ -199,13 +225,17 @@ int PicoReset(void)
 
   SekFinishIdleDet();
 
+#ifndef NO_32X
   if (PicoIn.opt & POPT_EN_32X)
     PicoReset32x();
+#endif
 
+#ifndef NO_MCD
   if (PicoIn.AHW & PAHW_MCD) {
     PicoResetMCD();
     return 0;
   }
+#endif
 
   // reinit, so that checksum checks pass
   if (!(PicoIn.opt & POPT_DIS_IDLE_DET))
@@ -243,10 +273,14 @@ void PicoLoopPrepare(void)
   Pico.m.dirtyPal = 1;
   rendstatus_old = -1;
 
+#ifndef NO_MCD
   if (PicoIn.AHW & PAHW_MCD)
     PicoMCDPrepare();
+#endif
+#ifndef NO_32X
   if (PicoIn.AHW & PAHW_32X)
     Pico32xPrepare();
+#endif
 }
 
 #include "pico_cmn.c"
@@ -280,21 +314,26 @@ void PicoFrame(void)
 
   Pico.m.frame_count++;
 
+#ifndef NO_SMS
   if (PicoIn.AHW & PAHW_SMS) {
     PicoFrameMS();
     goto end;
   }
+#endif
 
+#ifndef NO_32X
   if (PicoIn.AHW & PAHW_32X) {
     PicoFrame32x(); // also does MCD+32X
     goto end;
   }
+#endif
 
+#ifndef NO_MCD
   if (PicoIn.AHW & PAHW_MCD) {
     PicoFrameMCD();
     goto end;
   }
-
+#endif
   //if(Pico.video.reg[12]&0x2) Pico.video.status ^= SR_ODD; // change odd bit in interlace mode
 
   PicoFrameStart();

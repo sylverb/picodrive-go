@@ -25,8 +25,10 @@ void (*PsndMix_32_to_16)(s16 *dest, s32 *src, int count) = mix_32_to_16_stereo;
 // +1 for a fill triggered by an instruction overhanging into the next scanline
 static s32 PsndBuffer[2*(54000+100)/50+2];
 
+#ifndef NO_MCD
 // cdda output buffer
 s16 cdda_out_buffer[2*1152];
+#endif
 
 // sn76496
 extern int *sn76496_regs;
@@ -228,13 +230,17 @@ void PsndRerate(int preserve_state)
   Pico.snd.smpl_mult = 65536LL * PicoIn.sndRate / (target_fps*target_lines);
   // samples per z80 clock (Q20)
   Pico.snd.clkl_mult = 16 * Pico.snd.smpl_mult * 15/7 / 488.5;
+#ifndef NO_MCD
   // samples per 44.1 KHz sample
   Pico.snd.cdda_mult = 65536LL * 44100 / PicoIn.sndRate;
   Pico.snd.cdda_div  = 65536LL * PicoIn.sndRate / 44100;
+#endif
 
   // clear all buffers
   memset32(PsndBuffer, 0, sizeof(PsndBuffer)/4);
+#ifndef NO_MCD
   memset(cdda_out_buffer, 0, sizeof(cdda_out_buffer));
+#endif
   if (PicoIn.sndOut)
     PsndClear();
 
@@ -242,8 +248,10 @@ void PsndRerate(int preserve_state)
   PsndMix_32_to_16 = (PicoIn.opt & POPT_EN_STEREO) ? mix_32_to_16_stereo : mix_32_to_16_mono;
   mix_reset(PicoIn.opt & POPT_EN_SNDFILTER ? PicoIn.sndFilterAlpha : 0);
 
+#ifndef NO_PICO
   if (PicoIn.AHW & PAHW_PICO)
     PicoReratePico();
+#endif
 }
 
 
@@ -421,9 +429,12 @@ PICO_INTERNAL void PsndDoPCM(int cyc_to)
     stereo = 1;
     pos <<= 1;
   }
+#ifndef NO_PICO
   PicoPicoPCMUpdate(PicoIn.sndOut + pos, len, stereo);
+#endif
 }
 
+#ifndef NO_MCD
 // cdda
 static void cdda_raw_update(s32 *buffer, int length, int stereo)
 {
@@ -468,7 +479,7 @@ void cdda_start_play(int lba_base, int lba_offset, int lb_len)
     pm_seek(Pico_mcd->cdda_stream, 44, SEEK_CUR);
   }
 }
-
+#endif
 
 PICO_INTERNAL void PsndClear(void)
 {
@@ -513,12 +524,14 @@ static int PsndRender(int offset, int length)
       SN76496Update(psgbuf, length-psglen, stereo);
   }
 
+#ifndef NO_PICO
   if (PicoIn.AHW & PAHW_PICO) {
     // always need to render sound for interrupts
     s16 *buf16 = PicoIn.sndOut ? PicoIn.sndOut + (pcmlen<<stereo) : NULL;
     PicoPicoPCMUpdate(buf16, length-pcmlen, stereo);
     return length;
   }
+#endif
 
   // Fill up DAC output in case of missing samples (Q rounding errors)
   if (length-daclen > 0 && PicoIn.sndOut) {
@@ -550,12 +563,15 @@ static int PsndRender(int offset, int length)
   }
 
   // CD: PCM sound
+#ifndef NO_MCD
   if (PicoIn.AHW & PAHW_MCD) {
     pcd_pcm_update(buf32, length-offset, stereo);
   }
+#endif
 
   // CD: CDDA audio
   // CD mode, cdda enabled, not data track, CDC is reading
+#ifndef NO_MCD
   if ((PicoIn.AHW & PAHW_MCD) && (PicoIn.opt & POPT_EN_MCD_CDDA)
       && Pico_mcd->cdda_stream != NULL
       && (!(Pico_mcd->s68k_regs[0x36] & 1) || Pico_msd.state == 3))
@@ -565,9 +581,12 @@ static int PsndRender(int offset, int length)
     else
       cdda_raw_update(buf32, length-offset, stereo);
   }
+#endif
 
+#ifndef NO_32X
   if ((PicoIn.AHW & PAHW_32X) && (PicoIn.opt & POPT_EN_PWM))
     p32x_pwm_update(buf32, length-offset, stereo);
+#endif
 
   // convert + limit to normal 16bit output
   if (PicoIn.sndOut)

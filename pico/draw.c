@@ -1737,10 +1737,13 @@ PICO_INTERNAL void PicoFrameStart(void)
   // prepare to do this frame
   est->rendstatus = 0;
 
+#ifndef NO_32X
   if (PicoIn.AHW & PAHW_32X) // H32 upscaling, before mixing in 32X layer
     est->rendstatus = (*est->PicoOpt & POPT_ALT_RENDERER) ?
                 PDRAW_BORDER_32 : PDRAW_32X_SCALE|PDRAW_SOFTSCALE;
-  else if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
+  else
+#endif
+  if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
     est->rendstatus |= PDRAW_BORDER_32;
 
   if ((PicoIn.opt & POPT_EN_SOFTSCALE) && !(*est->PicoOpt & POPT_ALT_RENDERER))
@@ -1934,6 +1937,7 @@ void PicoDrawRefreshSprites(void)
 void PicoDrawBgcDMA(u16 *base, u32 source, u32 mask, int dlen, int sl)
 {
   struct PicoEState *est = &Pico.est;
+
   int len = (est->Pico->video.reg[12]&1) ? 320 : 256;
   int xl = (est->Pico->video.reg[12]&1) ? 38 : 33; // DMA slots during HSYNC
 
@@ -2000,9 +2004,11 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
       break;
 
     case PDF_RGB555:
+#ifndef NO_32X
       if ((PicoIn.AHW & PAHW_32X) && use_32x_line_mode)
         FinalizeLine = FinalizeLine32xRGB555;
       else
+#endif
         FinalizeLine = FinalizeLine555;
       break;
 
@@ -2010,8 +2016,10 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
       FinalizeLine = NULL;
       break;
   }
+#ifndef NO_32X
   if (PicoIn.AHW & PAHW_32X)
     PicoDrawSetOutFormat32x(which, use_32x_line_mode);
+#endif
   PicoDrawSetOutputSMS(which);
   rendstatus_old = -1;
   Pico.m.dirtyPal = 1;
@@ -2041,9 +2049,11 @@ void PicoDrawSetOutBufMD(void *dest, int increment)
 // note: may be called on the middle of frame
 void PicoDrawSetOutBuf(void *dest, int increment)
 {
+#ifndef NO_32X
   if (PicoIn.AHW & PAHW_32X)
     PicoDrawSetOutBuf32X(dest, increment);
   else
+#endif
     PicoDrawSetOutBufMD(dest, increment);
 }
 
@@ -2067,6 +2077,7 @@ void PicoDrawSetCallbacks(int (*begin)(unsigned int num), int (*end)(unsigned in
 {
   PicoScanBegin = NULL;
   PicoScanEnd = NULL;
+#ifndef NO_32X
   PicoScan32xBegin = NULL;
   PicoScan32xEnd = NULL;
 
@@ -2078,6 +2089,7 @@ void PicoDrawSetCallbacks(int (*begin)(unsigned int num), int (*end)(unsigned in
     PicoScanBegin = begin;
     PicoScanEnd = end;
   }
+#endif
 }
 
 void PicoDrawInit(void)

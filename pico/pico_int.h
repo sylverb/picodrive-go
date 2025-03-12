@@ -1134,7 +1134,7 @@ void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2);
 #define PicoReset32x()
 #define PicoFrame32x()
 #define PicoUnload32x()
-#define Pico32xStateLoaded()
+#define Pico32xStateLoaded(f) 1
 #define FinalizeLine32xRGB555 NULL
 #define p32x_pwm_update(...)
 #define p32x_timers_recalc()

@@ -41,7 +41,11 @@ static int do_ack(int level)
   else if (pv->pending_ints & pv->reg[0] & 0x10)
     pv->pending_ints &= ~0x10;
 
+#ifndef NO_PICO
   return (PicoIn.AHW & PAHW_PICO ? PicoPicoIrqAck(level) : 0);
+#else
+  return 0;
+#endif
 }
 
 /* callbacks */
@@ -188,7 +192,11 @@ PICO_INTERNAL void SekSetRealTAS(int use_real)
 PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
 {
 #if defined(EMU_C68K)
+#ifndef NO_MCD
   struct Cyclone *context = is_sub ? &PicoCpuCS68k : &PicoCpuCM68k;
+#else
+  struct Cyclone *context = &PicoCpuCM68k;
+#endif
   memcpy(cpu,context->d,0x40);
   *(u32 *)(cpu+0x40)=context->pc-context->membase;
   *(u32 *)(cpu+0x44)=CycloneGetSr(context);
@@ -197,7 +205,11 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
   cpu[0x4d] = context->state_flags & 1;
 #elif defined(EMU_M68K)
   void *oldcontext = m68ki_cpu_p;
+#ifndef NO_MCD
   m68k_set_context(is_sub ? &PicoCpuMS68k : &PicoCpuMM68k);
+#else
+  m68k_set_context(&PicoCpuMM68k);
+#endif
   memcpy(cpu,m68ki_cpu_p->dar,0x40);
   *(u32  *)(cpu+0x40)=m68ki_cpu_p->pc;
   *(u32  *)(cpu+0x44)=m68k_get_reg(NULL, M68K_REG_SR);
@@ -206,7 +218,11 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
   cpu[0x4d] = CPU_STOPPED;
   m68k_set_context(oldcontext);
 #elif defined(EMU_F68K)
+#ifndef NO_MCD
   M68K_CONTEXT *context = is_sub ? &PicoCpuFS68k : &PicoCpuFM68k;
+#else
+  M68K_CONTEXT *context = &PicoCpuFM68k;
+#endif
   memcpy(cpu,context->dreg,0x40);
   *(u32  *)(cpu+0x40)=context->pc;
   *(u32  *)(cpu+0x44)=context->sr;
@@ -215,10 +231,13 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
   cpu[0x4d] = (context->execinfo & FM68K_HALTED) ? 1 : 0;
 #endif
 
+#ifndef NO_MCD
   if (is_sub) {
     *(u32 *)(cpu+0x50) = SekCycleCntS68k;
     *(s16 *)(cpu+0x4e) = SekCycleCntS68k - SekCycleAimS68k;
-  } else {
+  } else
+#endif
+  {
     *(u32 *)(cpu+0x50) = Pico.t.m68c_cnt + Pico.t.z80_buscycles +
                           ((Pico.t.refresh_delay + (1<<14)/2) >> 14);
     *(s16 *)(cpu+0x4e) = Pico.t.m68c_cnt - Pico.t.m68c_aim;
@@ -228,7 +247,11 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
 PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
 {
 #if defined(EMU_C68K)
+#ifndef NO_MCD  
   struct Cyclone *context = is_sub ? &PicoCpuCS68k : &PicoCpuCM68k;
+#else
+  struct Cyclone *context = &PicoCpuCM68k;
+#endif
   CycloneSetSr(context, *(u32 *)(cpu+0x44));
   context->osp=*(u32 *)(cpu+0x48);
   memcpy(context->d,cpu,0x40);
@@ -241,7 +264,11 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
     context->state_flags |= 1;
 #elif defined(EMU_M68K)
   void *oldcontext = m68ki_cpu_p;
+#ifndef NO_MCD
   m68k_set_context(is_sub ? &PicoCpuMS68k : &PicoCpuMM68k);
+#else
+  m68k_set_context(&PicoCpuMM68k);
+#endif
   m68k_set_reg(M68K_REG_SR, *(u32 *)(cpu+0x44));
   memcpy(m68ki_cpu_p->dar,cpu,0x40);
   m68ki_cpu_p->pc=*(u32 *)(cpu+0x40);
@@ -250,7 +277,11 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
   CPU_STOPPED = cpu[0x4d];
   m68k_set_context(oldcontext);
 #elif defined(EMU_F68K)
+#ifndef NO_MCD
   M68K_CONTEXT *context = is_sub ? &PicoCpuFS68k : &PicoCpuFM68k;
+#else
+  M68K_CONTEXT *context = &PicoCpuFM68k;
+#endif
   memcpy(context->dreg,cpu,0x40);
   context->pc =*(u32 *)(cpu+0x40);
   context->sr =*(u32 *)(cpu+0x44);
@@ -259,10 +290,13 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
   context->execinfo &= ~FM68K_HALTED;
   if (cpu[0x4d]&1) context->execinfo |= FM68K_HALTED;
 #endif
+#ifndef NO_MCD
   if (is_sub) {
     SekCycleCntS68k = *(u32 *)(cpu+0x50);
     SekCycleAimS68k = SekCycleCntS68k - *(s16 *)(cpu+0x4e);
-  } else {
+  } else
+#endif
+  {
     Pico.t.m68c_cnt = *(u32 *)(cpu+0x50);
     Pico.t.m68c_aim = Pico.t.m68c_cnt - *(s16 *)(cpu+0x4e);
     Pico.t.z80_buscycles = 0;
@@ -334,8 +368,10 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
            (*dst & 0xc1ff) == 0x0038 || // move.x ($xxxx.w), dX
            (*dst & 0xf13f) == 0xb038)   // cmp.x ($xxxx.w), dX
         return 1;
+#if !defined(NO_MCD) || !defined(NO_32X)
       if (PicoIn.AHW & (PAHW_MCD|PAHW_32X))
         break;
+#endif
       // with no addons, there should be no need to wait
       // for byte change anywhere
       if ( (*dst & 0xfff8) == 0x4a10 || // tst.b ($aX)
@@ -361,8 +397,10 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
         return 1;
       break;
     case 12:
+#if !defined(NO_MCD) || !defined(NO_32X)
       if (PicoIn.AHW & (PAHW_MCD|PAHW_32X))
         break;
+#endif
       if ( (*dst & 0xf1f8) == 0x3010 && // move.w (aX), dX
             (dst[1]&0xf100) == 0x0000 && // arithmetic
             (dst[3]&0xf100) == 0x0000)   // arithmetic
@@ -392,10 +430,14 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx)
     (newop&0x200)?'n':'y', is_main68k?'m':'s', idledet_count);
 
   // XXX: probably shouldn't patch RAM too
+#ifndef NO_MCD
   if (is_main68k)
     v = m68k_read16_map[pc >> M68K_MEM_SHIFT];
   else
     v = s68k_read16_map[pc >> M68K_MEM_SHIFT];
+#else
+  v = m68k_read16_map[pc >> M68K_MEM_SHIFT];
+#endif
   if (~v & ~((uptr)-1LL >> 1)) // MSB clear?
     target = (u16 *)((v << 1) + pc);
   else {
@@ -425,7 +467,7 @@ void SekFinishIdleDet(void)
   CycloneFinishIdle();
 #endif
 #ifdef EMU_F68K
-  fm68k_idle_remove();
+//  fm68k_idle_remove();
 #endif
   while (idledet_count > 0)
   {

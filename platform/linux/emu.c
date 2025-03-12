@@ -70,6 +70,7 @@ static void change_renderer(int diff)
 		*r = RT_COUNT - 1;
 }
 
+#ifndef NO_MCD
 static void draw_cd_leds(void)
 {
 	int led_reg, pitch, scr_offs, led_offs;
@@ -88,6 +89,7 @@ static void draw_cd_leds(void)
 	p(pitch*0 + led_offs) = p(pitch*1 + led_offs) = p(pitch*2 + led_offs) = col_r;
 #undef p
 }
+#endif
 
 static void draw_pico_ptr(void)
 {
@@ -236,8 +238,10 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		emu_osd_text16(4, g_screen_height - 8, notice);
 	if (currentConfig.EmuOpt & EOPT_SHOW_FPS)
 		emu_osd_text16(g_screen_width - 60, g_screen_height - 8, fps);
+#ifndef NO_MCD
 	if ((PicoIn.AHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
+#endif
 }
 
 void plat_video_set_buffer(void *buf)

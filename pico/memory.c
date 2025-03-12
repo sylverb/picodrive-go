@@ -90,6 +90,7 @@ void cpu68k_map_read_mem(u32 start_addr, u32 end_addr, void *ptr, int is_sub)
   int shift = M68K_MEM_SHIFT;
   int i;
 
+#ifndef NO_MCD
   if (!is_sub) {
     r8map = m68k_read8_map;
     r16map = m68k_read16_map;
@@ -97,6 +98,10 @@ void cpu68k_map_read_mem(u32 start_addr, u32 end_addr, void *ptr, int is_sub)
     r8map = s68k_read8_map;
     r16map = s68k_read16_map;
   }
+#else
+  r8map = m68k_read8_map;
+  r16map = m68k_read16_map;
+#endif
 
   addr -= start_addr;
   addr >>= 1;
@@ -122,6 +127,7 @@ void cpu68k_map_all_ram(u32 start_addr, u32 end_addr, void *ptr, int is_sub)
   int shift = M68K_MEM_SHIFT;
   int i;
 
+#ifndef NO_MCD
   if (!is_sub) {
     r8map = m68k_read8_map;
     r16map = m68k_read16_map;
@@ -133,6 +139,12 @@ void cpu68k_map_all_ram(u32 start_addr, u32 end_addr, void *ptr, int is_sub)
     w8map = s68k_write8_map;
     w16map = s68k_write16_map;
   }
+#else
+  r8map = m68k_read8_map;
+  r16map = m68k_read16_map;
+  w8map = m68k_write8_map;
+  w16map = m68k_write16_map;
+#endif
 
   addr -= start_addr;
   addr >>= 1;
@@ -158,6 +170,7 @@ void cpu68k_map_read_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r
   int shift = M68K_MEM_SHIFT;
   int i;
 
+#ifndef NO_MCD
   if (!is_sub) {
     r8map = m68k_read8_map;
     r16map = m68k_read16_map;
@@ -165,6 +178,10 @@ void cpu68k_map_read_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r
     r8map = s68k_read8_map;
     r16map = s68k_read16_map;
   }
+#else
+  r8map = m68k_read8_map;
+  r16map = m68k_read16_map;
+#endif
 
   ar8 = (ar8 >> 1 ) | MAP_FLAG;
   ar16 = (ar16 >> 1 ) | MAP_FLAG;
@@ -180,6 +197,7 @@ void cpu68k_map_all_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r1
   int shift = M68K_MEM_SHIFT;
   int i;
 
+#ifndef NO_MCD
   if (!is_sub) {
     r8map = m68k_read8_map;
     r16map = m68k_read16_map;
@@ -191,6 +209,12 @@ void cpu68k_map_all_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r1
     w8map = s68k_write8_map;
     w16map = s68k_write16_map;
   }
+#else
+  r8map = m68k_read8_map;
+  r16map = m68k_read16_map;
+  w8map = m68k_write8_map;
+  w16map = m68k_write16_map;
+#endif
 
   ar8 = (ar8 >> 1 ) | MAP_FLAG;
   ar16 = (ar16 >> 1 ) | MAP_FLAG;
@@ -205,8 +229,12 @@ u32 PicoRead16_floating(u32 a)
   // faking open bus
   u16 d = (Pico.m.rotate += 0x41);
   d ^= (d << 5) ^ (d << 8);
+#ifndef NO_MCD
   if ((a & 0xff0000) == 0xa10000) return d; // MegaCD pulldowns don't work here curiously
   return (PicoIn.AHW & PAHW_MCD) ? 0x00 : d; // pulldown if MegaCD2 attached
+#else
+  return d;
+#endif
 }
 
 static u32 m68k_unmapped_read8(u32 a)
@@ -877,7 +905,11 @@ u32 PicoRead8_io(u32 a)
     goto end;
   }
 
+#ifndef NO_32X
   d = PicoRead8_32x(a);
+#else
+  d = 0;
+#endif
 
 end:
   return d;
@@ -906,7 +938,11 @@ u32 PicoRead16_io(u32 a)
     goto end;
   }
 
+#ifndef NO_32X
   d = PicoRead16_32x(a);
+#else
+  d = 0;
+#endif
 
 end:
   return d;
@@ -932,7 +968,9 @@ void PicoWrite8_io(u32 a, u32 d)
     Pico.m.sram_reg |= (u8)(d & 3);
     return;
   }
+#ifndef NO_32X
   PicoWrite8_32x(a, d);
+#endif
 }
 
 void PicoWrite16_io(u32 a, u32 d)
@@ -955,7 +993,9 @@ void PicoWrite16_io(u32 a, u32 d)
     Pico.m.sram_reg |= (u8)(d & 3);
     return;
   }
+#ifndef NO_32X
   PicoWrite16_32x(a, d);
+#endif
 }
 
 #endif // _ASM_MEMORY_C

@@ -349,6 +349,7 @@ void PDebugDumpMem(void)
     dump_ram(PicoMem.vsram,"dumps/vsram.bin");
   }
 
+#ifndef NO_MCD
   if (PicoIn.AHW & PAHW_MCD)
   {
     dump_ram(Pico_mcd->prg_ram, "dumps/prg_ram.bin");
@@ -363,7 +364,7 @@ void PDebugDumpMem(void)
     dump_ram_noswab(Pico_mcd->pcm_ram,"dumps/pcm_ram.bin");
     dump_ram_noswab(Pico_mcd->bram,   "dumps/bram.bin");
   }
-
+#endif
 #ifndef NO_32X
   if (PicoIn.AHW & PAHW_32X)
   {

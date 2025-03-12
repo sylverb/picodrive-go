@@ -855,30 +855,48 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
 
   if (!(PicoIn.AHW & (PAHW_SMS|PAHW_PICO)))
     PicoCartDetect(carthw_cfg);
+#ifndef NO_SMS
   if (PicoIn.AHW & PAHW_SMS)
     PicoCartDetectMS();
+#endif
+#ifndef NO_SVP
   if (PicoIn.AHW & PAHW_SVP)
     PicoSVPStartup();
+#endif
+#ifndef NO_PICO
   if (PicoIn.AHW & PAHW_PICO)
     PicoInitPico();
+#endif
 
   // setup correct memory map for loaded ROM
   switch (PicoIn.AHW & ~(PAHW_GG|PAHW_SG|PAHW_SC)) {
     default:
       elprintf(EL_STATUS|EL_ANOMALY, "starting in unknown hw configuration: %x", PicoIn.AHW);
     case 0:
+#ifndef NO_SVP
     case PAHW_SVP:  PicoMemSetup(); break;
+#else
+    PicoMemSetup(); break;
+#endif
+#ifndef NO_MCD
     case PAHW_MCD:  PicoMemSetupCD(); break;
+#endif
+#ifndef NO_PICO
     case PAHW_PICO: PicoMemSetupPico(); break;
+#endif
+#ifndef NO_SMS
     case PAHW_SMS:  PicoMemSetupMS(); break;
+#endif
   }
 
   if (PicoCartMemSetup != NULL)
     PicoCartMemSetup();
 
+#ifndef NO_SMS
   if (PicoIn.AHW & PAHW_SMS)
     PicoPowerMS();
   else
+#endif
     PicoPower();
 
   PicoGameLoaded = 1;
